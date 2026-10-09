@@ -14,8 +14,18 @@ import androidx.compose.ui.platform.LocalContext
 private val Green = Color(0xFF1E7A4F)
 private val GreenLight = Color(0xFF8FD8AE)
 
-private val LightColors = lightColorScheme(primary = Green, secondary = Color(0xFF4D6357))
-private val DarkColors = darkColorScheme(primary = GreenLight, secondary = Color(0xFFB4CCBC))
+private val LightColors = lightColorScheme(
+    primary = Green,
+    secondary = Color(0xFF4D6357),
+    secondaryContainer = Color(0xFFD0E8D9),
+    onSecondaryContainer = Color(0xFF0A1F14),
+)
+private val DarkColors = darkColorScheme(
+    primary = GreenLight,
+    secondary = Color(0xFFB4CCBC),
+    secondaryContainer = Color(0xFF223229),
+    onSecondaryContainer = Color(0xFFC6E6D2),
+)
 
 @Composable
 fun CashbackTheme(

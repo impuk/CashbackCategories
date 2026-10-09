@@ -4,6 +4,8 @@ import com.example.cashback.data.BankEntity
 import com.example.cashback.data.CategoryEntity
 import com.example.cashback.data.MonthlyRateEntity
 import com.example.cashback.data.PermanentRateEntity
+import com.example.cashback.domain.BankRate
+import com.example.cashback.domain.CategoryRow
 import com.example.cashback.domain.Months
 import com.example.cashback.domain.Percent
 import com.example.cashback.domain.buildMainRows
@@ -92,9 +94,11 @@ class DomainTest {
         // Выбранные — в порядке категорий; «Супермаркеты» (позиция 0) без банков уходит вниз
         assertEquals(listOf("Аптеки", "АЗС"), rows.selected.map { it.name })
         assertEquals(listOf("Супермаркеты", "Кино"), rows.unselected.map { it.name })
-        assertEquals("Альфа 5%", rows.selected[0].ratesText)
-        // Банки — в общем порядке (Т-Банк 0, ВТБ 2), не по проценту
-        assertEquals("Т-Банк 1,5% · ВТБ 3%", rows.selected[1].ratesText)
+        assertEquals(listOf("Альфа 5%"), rows.selected[0].best.map { it.label })
+        assertEquals(emptyList<String>(), rows.selected[0].rest.map { it.label })
+        // Лучший — по проценту, а не по списку банков (Т-Банк в списке раньше ВТБ)
+        assertEquals(listOf("ВТБ 3%"), rows.selected[1].best.map { it.label })
+        assertEquals(listOf("Т-Банк 1,5%"), rows.selected[1].rest.map { it.label })
     }
 
     @Test
@@ -105,6 +109,40 @@ class DomainTest {
             listOf(PermanentRateEntity(1, 1, 10)),
             emptyList(),
         )
-        assertEquals("Альфа 1%", rows.selected.single().ratesText)
+        assertEquals(listOf("Альфа 1%"), rows.selected.single().best.map { it.label })
+    }
+
+    private fun rate(id: Long, name: String, tenths: Int) = BankRate(id, name, tenths)
+
+    @Test
+    fun bestAndRestSplit() {
+        // Банки переданы в общем порядке списка банков.
+        val row = CategoryRow.of(
+            1, "Маркетплейсы",
+            listOf(
+                rate(1, "Т-Банк", 50), rate(2, "Альфа", 10), rate(3, "Яндекс", 30),
+                rate(4, "Озон", 50), rate(5, "ОТП", 30), rate(6, "WB", 50),
+            ),
+        )
+        // Несколько лучших — все в плашках, по порядку списка
+        assertEquals(listOf("Т-Банк 5%", "Озон 5%", "WB 5%"), row.best.map { it.label })
+        // Остальные — по убыванию процента, при равных — по порядку списка
+        assertEquals(listOf("Яндекс 3%", "ОТП 3%", "Альфа 1%"), row.rest.map { it.label })
+        assertTrue(row.isSelected)
+    }
+
+    @Test
+    fun bestOnlyAndEmpty() {
+        val single = CategoryRow.of(1, "АЗС", listOf(rate(1, "Т-Банк", 15)))
+        assertEquals(listOf("Т-Банк 1,5%"), single.best.map { it.label })
+        assertTrue(single.rest.isEmpty())
+
+        val bestHigherLater = CategoryRow.of(2, "Кафе", listOf(rate(1, "Т-Банк", 50), rate(2, "Яндекс", 100)))
+        assertEquals(listOf("Яндекс 10%"), bestHigherLater.best.map { it.label })
+        assertEquals(listOf("Т-Банк 5%"), bestHigherLater.rest.map { it.label })
+
+        val empty = CategoryRow.of(3, "Кино", emptyList())
+        assertTrue(empty.best.isEmpty() && empty.rest.isEmpty())
+        assertFalse(empty.isSelected)
     }
 }

@@ -1,6 +1,22 @@
 package com.example.cashback.ui.main
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import com.example.cashback.domain.BankRate
+import com.example.cashback.domain.Percent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -175,17 +191,80 @@ private fun MonthSwitch(state: MainUiState, onShowNext: (Boolean) -> Unit) {
     }
 }
 
+/** Горизонтальный отступ внутри плашки: на столько же плашки сдвинуты влево. */
+private val ChipPaddingH = 8.dp
+
+/**
+ * Выбранная категория: название, ниже плашки лучших банков, ниже бледная строка остальных.
+ * Текст плашек стоит на одной линии с названием, фон плашки выступает влево.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SelectedRow(row: CategoryRow, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(row.name, style = MaterialTheme.typography.titleMedium) },
-        supportingContent = {
-            Text(
-                row.ratesText,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        },
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+    ) {
+        Text(row.name, style = MaterialTheme.typography.titleMedium)
+        FlowRow(
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .extendStart(ChipPaddingH)
+                .testTag("best_${row.categoryId}"),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            row.best.forEach { BestChip(it) }
+        }
+        if (row.rest.isNotEmpty()) {
+            FlowRow(
+                modifier = Modifier.padding(top = 4.dp).testTag("rest_${row.categoryId}"),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                row.rest.forEach { rate ->
+                    Text(
+                        text = rate.bankName + "\u00A0" + Percent.format(rate.percentTenths) + "%",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BestChip(rate: BankRate) {
+    val percentColor = MaterialTheme.colorScheme.primary
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Text(
+            text = buildAnnotatedString {
+                append(rate.bankName)
+                append('\u00A0')
+                withStyle(SpanStyle(color = percentColor, fontWeight = FontWeight.Medium)) {
+                    append(Percent.format(rate.percentTenths) + "%")
+                }
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = ChipPaddingH, vertical = 3.dp),
+        )
+    }
+}
+
+/** Расширяет элемент влево на [extra] за пределы родителя, не сдвигая правый край. */
+private fun Modifier.extendStart(extra: Dp): Modifier = layout { measurable, constraints ->
+    val px = extra.roundToPx()
+    val maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + px else constraints.maxWidth
+    val placeable = measurable.measure(constraints.copy(maxWidth = maxWidth, minWidth = 0))
+    val width = (placeable.width - px).coerceAtLeast(0).coerceIn(constraints.minWidth, constraints.maxWidth)
+    layout(width, placeable.height) { placeable.placeRelative(-px, 0) }
 }

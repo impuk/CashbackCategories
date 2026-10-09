@@ -10,6 +10,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onChildren
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -69,12 +73,21 @@ class ScreensUiTest {
     private val mainState = MainUiState(
         loading = false,
         currentMonth = YearMonth.of(2026, 10),
+        // Банки в каждой категории переданы в общем порядке списка, как их отдаёт buildMainRows.
         selected = listOf(
-            CategoryRow(1, "Супермаркеты", listOf(BankRate(1, "Т-Банк", 50), BankRate(2, "Альфа", 30))),
-            CategoryRow(2, "АЗС", listOf(BankRate(1, "Т-Банк", 15))),
-            CategoryRow(3, "Аптеки", listOf(BankRate(2, "Альфа", 10), BankRate(7, "ВТБ", 50), BankRate(9, "WB", 20))),
+            CategoryRow.of(1, "Супермаркеты", listOf(BankRate(1, "Т-Банк", 30), BankRate(2, "Альфа", 15), BankRate(7, "ВТБ", 50))),
+            CategoryRow.of(
+                2, "Кафе и рестораны",
+                listOf(BankRate(1, "Т-Банк", 50), BankRate(4, "Яндекс", 100), BankRate(5, "Озон", 70), BankRate(8, "Газпром", 30)),
+            ),
+            CategoryRow.of(3, "АЗС", listOf(BankRate(1, "Т-Банк", 15))),
+            CategoryRow.of(4, "Аптеки", listOf(BankRate(2, "Альфа", 50), BankRate(3, "Халва", 50), BankRate(9, "WB", 20))),
+            CategoryRow.of(
+                5, "Маркетплейсы",
+                listOf(BankRate(1, "Т-Банк", 50), BankRate(2, "Альфа", 10), BankRate(4, "Яндекс", 30), BankRate(5, "Озон", 50), BankRate(9, "WB", 50)),
+            ),
         ),
-        unselected = listOf(CategoryRow(4, "Кино", emptyList()), CategoryRow(5, "Цветы", emptyList())),
+        unselected = listOf(CategoryRow.of(6, "Кино", emptyList()), CategoryRow.of(7, "Цветы", emptyList())),
     )
 
     @Test
@@ -95,8 +108,25 @@ class ScreensUiTest {
                 )
             }
         }
-        compose.onNodeWithText("Т-Банк 5% · Альфа 3%").assertIsDisplayed()
-        compose.onNodeWithText("Альфа 1% · ВТБ 5% · WB 2%").assertIsDisplayed()
+        // Лучший банк — плашкой, остальные — бледной строкой по убыванию процента
+        assertEquals(listOf("ВТБ 5%"), texts("best_1"))
+        assertEquals(listOf("Т-Банк 3%", "Альфа 1,5%"), texts("rest_1"))
+        assertEquals(listOf("Яндекс 10%"), texts("best_2"))
+        assertEquals(listOf("Озон 7%", "Т-Банк 5%", "Газпром 3%"), texts("rest_2"))
+        // Один банк — только плашка, бледной строки нет
+        assertEquals(listOf("Т-Банк 1,5%"), texts("best_3"))
+        compose.onNodeWithTag("rest_3", useUnmergedTree = true).assertDoesNotExist()
+        // Несколько лучших — плашки по порядку списка банков
+        assertEquals(listOf("Альфа 5%", "Халва 5%"), texts("best_4"))
+        assertEquals(listOf("Т-Банк 5%", "Озон 5%", "WB 5%"), texts("best_5"))
+        assertEquals(listOf("Яндекс 3%", "Альфа 1%"), texts("rest_5"))
+        // Текст плашек на одной линии с названием категории и бледной строкой
+        val nameLeft = compose.onNodeWithText("Супермаркеты", useUnmergedTree = true).getBoundsInRoot().left
+        val chipTextLeft = compose.onNodeWithTag("best_1", useUnmergedTree = true).onChildren()[0]
+            .onChildren()[0].getBoundsInRoot().left
+        val restLeft = compose.onNodeWithTag("rest_1", useUnmergedTree = true).onChildren()[0].getBoundsInRoot().left
+        assertEquals(nameLeft.value, chipTextLeft.value, 0.5f)
+        assertEquals(nameLeft.value, restLeft.value, 0.5f)
         compose.onNodeWithText("Без кэшбэка (2)").assertIsDisplayed()
         compose.onNodeWithText("Кино").assertDoesNotExist() // блок свёрнут
         screenshot("1_main")
@@ -108,7 +138,28 @@ class ScreensUiTest {
         compose.onNodeWithText("Ноябрь").performClick()
         assertEquals(true, next)
         compose.onNodeWithText("АЗС").performClick()
-        assertEquals(2L, opened)
+        assertEquals(3L, opened)
+    }
+
+    /** Тексты дочерних элементов ряда в порядке показа; неразрывный пробел заменён обычным. */
+    private fun texts(tag: String): List<String> {
+        val children = compose.onNodeWithTag(tag, useUnmergedTree = true).onChildren().fetchSemanticsNodes()
+        return children.sortedBy { it.boundsInRoot.top * 10_000 + it.boundsInRoot.left }.map { node ->
+            val own = node.config.getOrNull(SemanticsProperties.Text)
+                ?: node.children.flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }
+            own.joinToString("") { it.text }.replace('\u00A0', ' ')
+        }
+    }
+
+    @Test
+    fun mainScreenDark() {
+        compose.setContent {
+            CashbackTheme(darkTheme = true, dynamicColor = false) {
+                MainContent(mainState, false, {}, {}, {}, {}, {})
+            }
+        }
+        assertEquals(listOf("Т-Банк 5%", "Озон 5%", "WB 5%"), texts("best_5"))
+        screenshot("1_main_dark")
     }
 
     @Test

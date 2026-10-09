@@ -76,13 +76,13 @@ class ViewModelTest {
         val job = appScope.launch { vm.uiState.collect {} }
         awaitUntil { !vm.uiState.value.loading }
         assertEquals(listOf("АЗС", "Аптеки"), vm.uiState.value.selected.map { it.name }) // АЗС выше по порядку
-        assertEquals("Т-Банк 5%", vm.uiState.value.selected[0].ratesText)
+        assertEquals(listOf("Т-Банк 5%"), vm.uiState.value.selected[0].best.map { it.label })
         assertEquals(23, vm.uiState.value.unselected.size)
 
         vm.showNext(true)
-        awaitUntil { vm.uiState.value.showingNext && vm.uiState.value.selected.firstOrNull()?.ratesText == "Т-Банк 3%" }
+        awaitUntil { vm.uiState.value.showingNext && vm.uiState.value.selected.firstOrNull()?.best?.map { it.label } == listOf("Т-Банк 3%") }
         assertEquals(YearMonth.of(2026, 11), vm.uiState.value.shownMonth)
-        assertEquals("Альфа 1%", vm.uiState.value.selected[1].ratesText) // постоянная — в каждом месяце
+        assertEquals(listOf("Альфа 1%"), vm.uiState.value.selected[1].best.map { it.label }) // постоянная — в каждом месяце
         job.cancel()
     }
 
