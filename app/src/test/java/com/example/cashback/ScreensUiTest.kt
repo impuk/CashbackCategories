@@ -48,8 +48,8 @@ class ScreensUiTest {
     @get:Rule
     val compose = createComposeRule()
 
-    /** Рисует все окна (экран, меню, диалоги) в один PNG для ручной проверки вёрстки. */
-    private fun screenshot(name: String) {
+    /** Рисует все окна (экран, меню, диалоги) в один bitmap. */
+    private fun render(): Bitmap {
         compose.waitForIdle()
         val global = Class.forName("android.view.WindowManagerGlobal")
         val instance = global.getMethod("getInstance").invoke(null)
@@ -66,8 +66,34 @@ class ScreensUiTest {
             view.draw(canvas)
             canvas.restore()
         }
+        return bitmap
+    }
+
+    /** Сохраняет снимок экрана в PNG для ручной проверки вёрстки. */
+    private fun screenshot(name: String) {
         val dir = File("build/screenshots").apply { mkdirs() }
-        File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        File(dir, "$name.png").outputStream().use { render().compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    /**
+     * Проверяет первую плашку категории: цвет фона и отступ текста от края фона (5 dp).
+     */
+    private fun checkFirstChip(tag: String, expectedBackground: Int) {
+        val chip = compose.onNodeWithTag(tag, useUnmergedTree = true).onChildren()[0]
+        val chipBounds = chip.getBoundsInRoot()
+        val textBounds = chip.onChildren()[0].getBoundsInRoot()
+        assertEquals(5f, (textBounds.left - chipBounds.left).value, 0.5f)
+        assertEquals(2f, (textBounds.top - chipBounds.top).value, 0.5f)
+        val density = compose.density.density
+        val bitmap = render()
+        // Точка внутри фона плашки: в левом отступе, посередине по высоте
+        val x = ((chipBounds.left.value + 2.5f) * density).toInt()
+        val y = (((chipBounds.top.value + chipBounds.bottom.value) / 2f) * density).toInt()
+        assertEquals(
+            "цвет фона плашки",
+            String.format("#%06X", expectedBackground),
+            String.format("#%06X", bitmap.getPixel(x, y) and 0xFFFFFF),
+        )
     }
 
     private val mainState = MainUiState(
@@ -127,6 +153,8 @@ class ScreensUiTest {
         val restLeft = compose.onNodeWithTag("rest_1", useUnmergedTree = true).onChildren()[0].getBoundsInRoot().left
         assertEquals(nameLeft.value, chipTextLeft.value, 0.5f)
         assertEquals(nameLeft.value, restLeft.value, 0.5f)
+        // Плашка: отступы 5/2 dp и постоянный светлый зелёный фон
+        checkFirstChip("best_1", 0xCDEBD8)
         compose.onNodeWithText("Без кэшбэка (2)").assertIsDisplayed()
         compose.onNodeWithText("Кино").assertDoesNotExist() // блок свёрнут
         screenshot("1_main")
@@ -159,6 +187,7 @@ class ScreensUiTest {
             }
         }
         assertEquals(listOf("Т-Банк 5%", "Озон 5%", "WB 5%"), texts("best_5"))
+        checkFirstChip("best_1", 0x1B3A2A)
         screenshot("1_main_dark")
     }
 

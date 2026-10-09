@@ -17,6 +17,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import com.example.cashback.domain.BankRate
 import com.example.cashback.domain.Percent
+import com.example.cashback.ui.theme.LocalBestChipColors
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -192,7 +193,8 @@ private fun MonthSwitch(state: MainUiState, onShowNext: (Boolean) -> Unit) {
 }
 
 /** Горизонтальный отступ внутри плашки: на столько же плашки сдвинуты влево. */
-private val ChipPaddingH = 8.dp
+private val ChipPaddingH = 5.dp
+private val ChipPaddingV = 2.dp
 
 /**
  * Выбранная категория: название, ниже плашки лучших банков, ниже бледная строка остальных.
@@ -239,23 +241,23 @@ private fun SelectedRow(row: CategoryRow, onClick: () -> Unit) {
 
 @Composable
 private fun BestChip(rate: BankRate) {
-    val percentColor = MaterialTheme.colorScheme.primary
+    val colors = LocalBestChipColors.current
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(6.dp),
+        color = colors.container,
+        contentColor = colors.bankName,
     ) {
         Text(
             text = buildAnnotatedString {
                 append(rate.bankName)
                 append('\u00A0')
-                withStyle(SpanStyle(color = percentColor, fontWeight = FontWeight.Medium)) {
+                withStyle(SpanStyle(color = colors.percent, fontWeight = FontWeight.Bold)) {
                     append(Percent.format(rate.percentTenths) + "%")
                 }
             },
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
-            modifier = Modifier.padding(horizontal = ChipPaddingH, vertical = 3.dp),
+            modifier = Modifier.padding(horizontal = ChipPaddingH, vertical = ChipPaddingV),
         )
     }
 }
